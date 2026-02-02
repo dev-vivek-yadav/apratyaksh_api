@@ -67,6 +67,17 @@ class MappingService:
         self.devanagari_to_telugu_matra = {}
         self.devanagari_to_telugu_modifier = {}
 
+        # Malayalam mappings
+        self.malayalam_to_latin_consonant_map = {}
+        self.malayalam_to_latin_vowel_map = {}
+        self.malayalam_MATRAS_SET = set()
+        self.malayalam_MATRA_TO_LATIN_VOWEL = {}
+        self.malayalam_MODIFIERS_TO_LATIN = {}
+        self.latin_to_malayalam_consonant = {}
+        self.latin_to_malayalam_vowel = {}
+        self.devanagari_to_malayalam_matra = {}
+        self.devanagari_to_malayalam_modifier = {}
+
         self.KANNADA_MATRA_TO_FULL_VOWEL = {
             'ಾ': 'ಆ', 'ಿ': 'ಇ', 'ೀ': 'ಈ', 'ು': 'ಉ', 'ೂ': 'ಊ',
             'ೃ': 'ಋ', 'ೄ': 'ೠ', 'ೆ': 'ಎ', 'ೇ': 'ಏ', 'ೈ': 'ಐ',
@@ -103,6 +114,21 @@ class MappingService:
             'ౌ': 'ఔ'    # au
         }
 
+        self.MALAYALAM_MATRA_TO_FULL_VOWEL = {
+            'ാ': 'ആ',   # aa
+            'ി': 'ഇ',   # i
+            'ീ': 'ഈ',   # ii
+            'ു': 'ഉ',   # u
+            'ൂ': 'ഊ',   # uu
+            'ൃ': 'ഋ',   # r
+            'െ': 'എ',   # e
+            'േ': 'ഏ',   # ee
+            'ൈ': 'ഐ',   # ai
+            'ൊ': 'ഒ',   # o
+            'ോ': 'ഓ',   # oo
+            'ൌ': 'ഔ'    # au
+        }
+
         # Add placeholder for Tamil mappings (to prevent errors in case referenced elsewhere)
         self.tamil_MATRAS_SET = set()
         self.tamil_MODIFIERS_TO_LATIN = {}
@@ -130,15 +156,16 @@ class MappingService:
             # Update query to include telugu_char
             cursor.execute("""
                 SELECT devanagari_char, latin_char, kannada_char,
-                       telugu_char, color_hex
+                       telugu_char,malayalam_char, color_hex
                 FROM colour_mapping
             """)
             self.character_colors_map.clear()
-            for dev, lat, kan, tel, hexcol in cursor.fetchall():
+            for dev, lat, kan, tel, mal, hexcol in cursor.fetchall():
                 if dev: self.character_colors_map[dev] = hexcol
                 if lat: self.character_colors_map[lat] = hexcol
                 if kan: self.character_colors_map[kan] = hexcol
                 if tel: self.character_colors_map[tel] = hexcol  # Add Telugu character colors
+                if mal: self.character_colors_map[mal] = hexcol  # Add Malayalam character colors
         except Exception as e:
             print(f"[ERROR] Loading character colors failed: {e}")
         finally:
@@ -166,6 +193,7 @@ class MappingService:
                     latin_char,
                     kannada_char,
                     telugu_char,
+                    malayalam_char,
                     category,
                     place_of_articulation,
                     sthana,
@@ -236,6 +264,7 @@ class MappingService:
             "अ (implicit)": "अ",
             "ಆ (implicit)": "ಆ",
             "a (implicit)": "a",
+            "അ (implicit)": "അ",  # Malayalam implicit vowel
             # add more implicit → explicit mappings as required
         }
 
@@ -249,6 +278,7 @@ class MappingService:
     def load_initial_values_from_db(self):
         """Loads all mappings from DB into memory."""
         try:
+            print("[INFO] Loading mappings from DB...")
             conn = self.get_db_connection()
             cursor = conn.cursor()  # optional: dictionary rows
 
@@ -300,6 +330,9 @@ class MappingService:
 
             # Load Telugu mappings
             self._load_telugu_mappings_from_db(conn)
+
+            # Load Malayalam mappings
+            self._load_malayalam_mappings_from_db(conn)
 
         except mysql.connector.Error as err:
             print(f"[ERROR] DB load failed: {err}")
@@ -430,6 +463,72 @@ class MappingService:
             if 'cursor' in locals() and cursor:
                 cursor.close()
 
+    def _load_malayalam_mappings_from_db(self, db_conn):
+        """Loads Malayalam-specific mappings."""
+        try:
+            cursor = db_conn.cursor()
+
+            # Load Malayalam consonants
+            cursor.execute("SELECT malayalam_character, devanagari_character FROM consonants_malayalam")
+            for malayalamChar, dev_char in cursor.fetchall():
+                if not malayalamChar or not dev_char:
+                    continue
+                latin_equiv = self.devanagari_to_latin_consonant_map.get(
+                    unicodedata.normalize('NFC', dev_char)
+                )
+                if latin_equiv:
+                    self.malayalam_to_latin_consonant_map[
+                        unicodedata.normalize('NFC', malayalamChar)
+                    ] = latin_equiv
+                    self.latin_to_malayalam_consonant[latin_equiv] = unicodedata.normalize('NFC', malayalamChar)
+
+            # Load Malayalam vowels
+            cursor.execute("SELECT malayalam_character, devanagari_character FROM vowels_malayalam")
+            for malayalamChar, dev_char in cursor.fetchall():
+                if not malayalamChar or not dev_char:
+                    continue
+                latin_equiv = self.devanagari_to_latin_vowel_map.get(
+                    unicodedata.normalize('NFC', dev_char)
+                )
+                if latin_equiv:
+                    self.malayalam_to_latin_vowel_map[
+                        unicodedata.normalize('NFC', malayalamChar)
+                    ] = latin_equiv
+                    self.latin_to_malayalam_vowel[latin_equiv] = unicodedata.normalize('NFC', malayalamChar)
+
+            # Load Malayalam matras
+            cursor.execute("SELECT malayalam_char, devanagari_char FROM malayalam_matras_map")
+            for malayalam_matra, dev_matra in cursor.fetchall():
+                if not malayalam_matra or not dev_matra:
+                    continue
+                dev_latin_equiv = self.DEVANAGARI_MATRA_TO_LATIN_VOWEL.get(
+                    unicodedata.normalize('NFC', dev_matra)
+                )
+                if dev_latin_equiv:
+                    malayalam_norm = unicodedata.normalize('NFC', malayalam_matra)
+                    self.malayalam_MATRAS_SET.add(malayalam_norm)
+                    self.malayalam_MATRA_TO_LATIN_VOWEL[malayalam_norm] = dev_latin_equiv
+                    self.devanagari_to_malayalam_matra[unicodedata.normalize('NFC', dev_matra)] = malayalam_norm
+
+            # Load Malayalam modifiers
+            cursor.execute("SELECT malayalam_char, devanagari_char FROM malayalam_modifiers_map")
+            for malayalam_mod, dev_mod in cursor.fetchall():
+                if not malayalam_mod or not dev_mod:
+                    continue
+                dev_latin_equiv = self.DEVANAGARI_MODIFIERS_TO_LATIN.get(
+                    unicodedata.normalize('NFC', dev_mod)
+                )
+                if dev_latin_equiv:
+                    malayalam_norm = unicodedata.normalize('NFC', malayalam_mod)
+                    self.malayalam_MODIFIERS_TO_LATIN[malayalam_norm] = dev_latin_equiv
+                    self.devanagari_to_malayalam_modifier[unicodedata.normalize('NFC', dev_mod)] = malayalam_norm
+
+        except mysql.connector.Error as err:
+            print(f"[ERROR] Malayalam load failed: {err}")
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+
 
 
 
@@ -549,7 +648,7 @@ class MappingService:
                 unicodedata.normalize('NFC', char.lower()) for char in text
                 if not unicodedata.category(char).startswith('P')
             )
-        elif input_script in ['devanagari', 'kannada', 'tamil', 'telugu']:
+        elif input_script in ['devanagari', 'kannada', 'tamil', 'telugu', 'malayalam']:
             cleaned_word = ''.join(
                 unicodedata.normalize('NFC', char) for char in text
                 if not unicodedata.category(char).startswith('P') and not unicodedata.category(char).startswith('Z')
@@ -568,6 +667,8 @@ class MappingService:
                 cleaned_word = self.expand_matras_to_vowels(cleaned_word, self.tamil_MATRAS_SET, self.TAMIL_MATRA_TO_FULL_VOWEL)
             elif input_script == 'telugu':
                 cleaned_word = self.expand_matras_to_vowels(cleaned_word, self.telugu_MATRAS_SET, self.TELUGU_MATRA_TO_FULL_VOWEL)
+            elif input_script == 'malayalam':
+                cleaned_word = self.expand_matras_to_vowels(cleaned_word, self.malayalam_MATRAS_SET, self.MALAYALAM_MATRA_TO_FULL_VOWEL)
         else:
             return [], []
 
@@ -614,6 +715,11 @@ class MappingService:
                 sorted_vowel_keys = sorted(self.telugu_to_latin_vowel_map.keys(), key=len, reverse=True)
                 map_consonant_to_latin = self.telugu_to_latin_consonant_map.get
                 map_vowel_to_latin = self.telugu_to_latin_vowel_map.get
+            elif input_script == 'malayalam':
+                sorted_consonant_keys = sorted(self.malayalam_to_latin_consonant_map.keys(), key=len, reverse=True)
+                sorted_vowel_keys = sorted(self.malayalam_to_latin_vowel_map.keys(), key=len, reverse=True)
+                map_consonant_to_latin = self.malayalam_to_latin_consonant_map.get
+                map_vowel_to_latin = self.malayalam_to_latin_vowel_map.get
             else:
                 break
 
@@ -648,6 +754,7 @@ class MappingService:
                         (input_script == 'devanagari' and next_char == '्') or
                         (input_script == 'kannada' and next_char == '್') or
                         (input_script == 'telugu' and next_char == '్') or
+                        (input_script == 'malayalam' and next_char == '്') or
                         (input_script == 'latin' and next_char == '-')  # Latin explicit halant
                     )
 
@@ -854,12 +961,14 @@ class MappingService:
             devanagari_char = self.consonant_devanagari.get(latin_char, "")
             kannada_char = self.latin_to_kannada_consonant.get(latin_char, "")
             telugu_char = self.latin_to_telugu_consonant.get(latin_char, "")
+            malayalam_char = self.latin_to_malayalam_consonant.get(latin_char, "")
             consonants_data.append({
                 "latinChar": latin_char,
                 "number": number,
                 "devanagariChar": devanagari_char,
                 "kannadaChar": kannada_char,
-                "teluguChar": telugu_char
+                "teluguChar": telugu_char,
+                "malayalamChar": malayalam_char
             })
 
         # --- Vowels ---
@@ -870,7 +979,8 @@ class MappingService:
                 "number": number,
                 "devanagariChar": self.vowel_devanagari.get(latin_char, ""),
                 "kannadaChar": self.latin_to_kannada_vowel.get(latin_char, ""),
-                "teluguChar": self.latin_to_telugu_vowel.get(latin_char, "")
+                "teluguChar": self.latin_to_telugu_vowel.get(latin_char, ""),
+                "malayalamChar": self.latin_to_malayalam_vowel.get(latin_char, "")
             })
 
         # --- Devanagari Matras & Modifiers ---
@@ -880,7 +990,8 @@ class MappingService:
                 "devanagariChar": dev_matra,
                 "latinEquivalent": latin_equiv,
                 "kannadaChar": self.devanagari_to_kannada_matra.get(dev_matra, ""),
-                "teluguChar": self.devanagari_to_telugu_matra.get(dev_matra, "")
+                "teluguChar": self.devanagari_to_telugu_matra.get(dev_matra, ""),
+                "malayalamChar": self.devanagari_to_malayalam_matra.get(dev_matra, "")
             })
 
         modifiers_data = []
@@ -889,7 +1000,8 @@ class MappingService:
                 "devanagariChar": dev_mod,
                 "latinEquivalent": latin_equiv,
                 "kannadaChar": self.devanagari_to_kannada_modifier.get(dev_mod, ""),
-                "teluguChar": self.devanagari_to_telugu_modifier.get(dev_mod, "")
+                "teluguChar": self.devanagari_to_telugu_modifier.get(dev_mod, ""),
+                "malayalamChar": self.devanagari_to_malayalam_modifier.get(dev_mod, "")
             })
 
         # --- Kannada Matras & Modifiers ---
@@ -914,6 +1026,17 @@ class MappingService:
             for k, v in self.telugu_MODIFIERS_TO_LATIN.items()
         ]
 
+        # --- Malayalam Matras & Modifiers ---
+        malayalam_matras_data = [
+            {"malayalamChar": k, "latinEquivalent": v}
+            for k, v in self.malayalam_MATRA_TO_LATIN_VOWEL.items()
+        ]
+
+        malayalam_modifiers_data = [
+            {"malayalamChar": k, "latinEquivalent": v}
+            for k, v in self.malayalam_MODIFIERS_TO_LATIN.items()
+        ]
+
         return {
             "consonants": consonants_data,
             "vowels": vowels_data,
@@ -922,7 +1045,9 @@ class MappingService:
             "kannada_matras_map": kannada_matras_data,
             "kannada_modifiers_map": kannada_modifiers_data,
             "telugu_matras_map": telugu_matras_data,
-            "telugu_modifiers_map": telugu_modifiers_data
+            "telugu_modifiers_map": telugu_modifiers_data,
+            "malayalam_matras_map": malayalam_matras_data,
+            "malayalam_modifiers_map": malayalam_modifiers_data
         }
 
     def calculate_logic(self, tokens: list, operation: str):
@@ -955,7 +1080,7 @@ class MappingService:
 
 
 
-    def add_mapping(self, db, latin_char, insert_at, mapping_type, devanagari_char="", kannada_char=""):
+    def add_mapping(self, db, latin_char, insert_at, mapping_type, devanagari_char="", kannada_char="", telugu_char="", malayalam_char="", color_hex=""):
 
         if mapping_type == "consonant":
             # Check if exists in consonants_latin
@@ -984,6 +1109,44 @@ class MappingService:
                         {"id": insert_at, "kan": kannada_char, "dev": devanagari_char}
                     )
 
+            # If Telugu char provided → check duplicate and insert
+            if telugu_char and devanagari_char:
+                existing_tel = db.execute(
+                    text("SELECT telugu_character FROM consonants_telugu WHERE telugu_character = :tel"),
+                    {"tel": telugu_char}
+                ).fetchone()
+                if not existing_tel:
+                    db.execute(
+                        text("INSERT INTO consonants_telugu (char_id, telugu_character, devanagari_character) VALUES (:id, :tel, :dev)"),
+                        {"id": insert_at, "tel": telugu_char, "dev": devanagari_char}
+                    )
+
+            # If Malayalam char provided → check duplicate and insert
+            if malayalam_char and devanagari_char:
+                existing_mal = db.execute(
+                    text("SELECT malayalam_character FROM consonants_malayalam WHERE malayalam_character = :mal"),
+                    {"mal": malayalam_char}
+                ).fetchone()
+                if not existing_mal:
+                    db.execute(
+                        text("INSERT INTO consonants_malayalam (char_id, malayalam_character, devanagari_character) VALUES (:id, :mal, :dev)"),
+                        {"id": insert_at, "mal": malayalam_char, "dev": devanagari_char}
+                    )
+
+            # Insert into colour_mapping if color provided
+            if color_hex and devanagari_char:
+                existing_color = db.execute(
+                    text("SELECT id FROM colour_mapping WHERE devanagari_char = :dev"),
+                    {"dev": devanagari_char}
+                ).fetchone()
+                if not existing_color:
+                    db.execute(
+                        text("""INSERT INTO colour_mapping (devanagari_char, latin_char, kannada_char, telugu_char, malayalam_char, color_hex) 
+                                VALUES (:dev, :lat, :kan, :tel, :mal, :color)"""),
+                        {"dev": devanagari_char, "lat": latin_char, "kan": kannada_char, 
+                         "tel": telugu_char, "mal": malayalam_char, "color": color_hex}
+                    )
+
             # Update memory
             self.consonant_values[latin_char] = insert_at
             self.consonant_devanagari[latin_char] = devanagari_char
@@ -992,6 +1155,24 @@ class MappingService:
             if kannada_char:
                 self.latin_to_kannada_consonant[latin_char] = kannada_char
                 self.kannada_to_latin_consonant_map[kannada_char] = latin_char
+            if telugu_char:
+                self.latin_to_telugu_consonant[latin_char] = telugu_char
+                self.telugu_to_latin_consonant_map[telugu_char] = latin_char
+            if malayalam_char:
+                self.latin_to_malayalam_consonant[latin_char] = malayalam_char
+                self.malayalam_to_latin_consonant_map[malayalam_char] = latin_char
+            # Update color map if provided
+            if color_hex:
+                if devanagari_char:
+                    self.character_colors_map[devanagari_char] = color_hex
+                if latin_char:
+                    self.character_colors_map[latin_char] = color_hex
+                if kannada_char:
+                    self.character_colors_map[kannada_char] = color_hex
+                if telugu_char:
+                    self.character_colors_map[telugu_char] = color_hex
+                if malayalam_char:
+                    self.character_colors_map[malayalam_char] = color_hex
 
         elif mapping_type == "vowel":
             # Check if exists in vowels_latin
@@ -1020,6 +1201,44 @@ class MappingService:
                         {"id": insert_at, "kan": kannada_char, "dev": devanagari_char}
                     )
 
+            # If Telugu char provided → check duplicate and insert into vowels_telugu
+            if telugu_char and devanagari_char:
+                existing_tel = db.execute(
+                    text("SELECT telugu_character FROM vowels_telugu WHERE telugu_character = :tel"),
+                    {"tel": telugu_char}
+                ).fetchone()
+                if not existing_tel:
+                    db.execute(
+                        text("INSERT INTO vowels_telugu (char_id, telugu_character, devanagari_character) VALUES (:id, :tel, :dev)"),
+                        {"id": insert_at, "tel": telugu_char, "dev": devanagari_char}
+                    )
+
+            # If Malayalam char provided → check duplicate and insert into vowels_malayalam
+            if malayalam_char and devanagari_char:
+                existing_mal = db.execute(
+                    text("SELECT malayalam_character FROM vowels_malayalam WHERE malayalam_character = :mal"),
+                    {"mal": malayalam_char}
+                ).fetchone()
+                if not existing_mal:
+                    db.execute(
+                        text("INSERT INTO vowels_malayalam (char_id, malayalam_character, devanagari_character) VALUES (:id, :mal, :dev)"),
+                        {"id": insert_at, "mal": malayalam_char, "dev": devanagari_char}
+                    )
+
+            # Insert into colour_mapping if color provided
+            if color_hex and devanagari_char:
+                existing_color = db.execute(
+                    text("SELECT id FROM colour_mapping WHERE devanagari_char = :dev"),
+                    {"dev": devanagari_char}
+                ).fetchone()
+                if not existing_color:
+                    db.execute(
+                        text("""INSERT INTO colour_mapping (devanagari_char, latin_char, kannada_char, telugu_char, malayalam_char, color_hex) 
+                                VALUES (:dev, :lat, :kan, :tel, :mal, :color)"""),
+                        {"dev": devanagari_char, "lat": latin_char, "kan": kannada_char, 
+                         "tel": telugu_char, "mal": malayalam_char, "color": color_hex}
+                    )
+
             # Update memory
             self.vowel_multipliers[latin_char] = insert_at
             self.vowel_devanagari[latin_char] = devanagari_char
@@ -1028,6 +1247,24 @@ class MappingService:
             if kannada_char:
                 self.latin_to_kannada_vowel[latin_char] = kannada_char
                 self.kannada_to_latin_vowel_map[kannada_char] = latin_char
+            if telugu_char:
+                self.latin_to_telugu_vowel[latin_char] = telugu_char
+                self.telugu_to_latin_vowel_map[telugu_char] = latin_char
+            if malayalam_char:
+                self.latin_to_malayalam_vowel[latin_char] = malayalam_char
+                self.malayalam_to_latin_vowel_map[malayalam_char] = latin_char
+            # Update color map if provided
+            if color_hex:
+                if devanagari_char:
+                    self.character_colors_map[devanagari_char] = color_hex
+                if latin_char:
+                    self.character_colors_map[latin_char] = color_hex
+                if kannada_char:
+                    self.character_colors_map[kannada_char] = color_hex
+                if telugu_char:
+                    self.character_colors_map[telugu_char] = color_hex
+                if malayalam_char:
+                    self.character_colors_map[malayalam_char] = color_hex
 
         else:
             raise ValueError("Invalid mapping type")

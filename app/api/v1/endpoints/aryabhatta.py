@@ -7,20 +7,24 @@ import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-service = MappingService()
 
 # -----------------------------
-# Dependency for MappingService
+# Singleton instance (loads once)
 # -----------------------------
-def get_mapping_service(db: Session = Depends(get_db)):
+_mapping_service_instance = None
+
+def get_mapping_service():
     """
-    Returns a fully initialized MappingService instance.
-    Loads all mappings and colors from DB.
+    Returns a cached MappingService instance (Singleton pattern).
+    Loads all mappings and colors from DB only on first call.
     """
-    service = MappingService()
-    service.load_initial_values_from_db()
-    service.load_character_colors_from_db()
-    return service
+    global _mapping_service_instance
+    if _mapping_service_instance is None:
+        _mapping_service_instance = MappingService()
+        _mapping_service_instance.load_initial_values_from_db()
+        _mapping_service_instance.load_character_colors_from_db()
+        logger.info("✅ MappingService initialized and cached!")
+    return _mapping_service_instance
 
 # -----------------------------
 # Base endpoint
@@ -46,7 +50,7 @@ async def process_word_api(
         raise HTTPException(status_code=400, detail="Input must be a single word. Spaces are not allowed.")
     if len(word_input) > 100:
         raise HTTPException(status_code=400, detail="Input word exceeds 100 character limit.")
-    if input_script not in ["latin", "devanagari", "kannada", "telugu"]:  # Removed "tamil"
+    if input_script not in ["latin", "devanagari", "kannada", "telugu", "malayalam"]:
         raise HTTPException(status_code=400, detail="Invalid input script specified.")
 
     tokens, all_numbers = mapping_service.tokenize_sentence(word_input, input_script)
