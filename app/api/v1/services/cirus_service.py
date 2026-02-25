@@ -88,8 +88,8 @@ class CirusService:
         """Get all countries ordered by cyber risk rank"""
         try:
             cols = await self._get_table_columns(session, "country")
-            rank_col = self._find_column(cols, ["cyber_risk_rank", "cyber_risk", "rank"])
-            order_clause = f"ORDER BY `{rank_col}` DESC" if rank_col else ""
+            rank_col = self._find_column(cols, ["country"])
+            order_clause = f"ORDER BY `{rank_col}` ASC" if rank_col else ""
             query = f"SELECT * FROM `country` {order_clause}"
             result = await session.execute(text(query))
             rows = result.fetchall()
