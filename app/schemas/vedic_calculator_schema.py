@@ -7,8 +7,8 @@ class ExpressionCalculateRequest(BaseModel):
     expression: str = Field(
         ...,
         min_length=1,
-        description="Arithmetic expression containing integers and +, -, *, / operators",
-        examples=["12+5*3-9", "100/4+25*2-3", "-10+25*4-3/2+9"],
+        description="Two-number arithmetic expression containing integers and one operator (+, -, *, /)",
+        examples=["12+5", "100/4", "-10*25"],
     )
 
 
