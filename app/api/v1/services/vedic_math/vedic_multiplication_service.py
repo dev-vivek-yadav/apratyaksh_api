@@ -1,9 +1,16 @@
-from .vedic_addition_service import VedicAdditionService
+# from .vedic_addition_service import VedicAdditionService
+from .vedic_urdhva_multiplication_service import VedicUrdhvaTirService
 
 class VedicUrdhvaTiryagbhyamService:
 
     # def __init__(self):
     #     self._addition = VedicAdditionService()
+
+    def __init__(self):
+        self._addition = VedicUrdhvaTirService()
+
+    def mul(self,nums):
+        return self._addition.calculate(a=nums[0],b=nums[1])
 
     # def add(self, nums):
     #     return self._addition.calculate(nums)
@@ -45,7 +52,10 @@ class VedicUrdhvaTiryagbhyamService:
         sign_b = "+" if dev_b >= 0 else ""
 
         steps.append(
-            f"Step 1 - Base Selection: Larger operand base family gives theoretical base = {theoretical_base}, working base = {working_base}"
+            f"Step 1 - Determine the base by taking the higher value among the two numbers"
+
+                f" 1.1 Base Selection: Larger operand base family gives theoretical base = {theoretical_base}, working base = {working_base}"
+
         )
 
         if factor == 1:
@@ -62,6 +72,8 @@ class VedicUrdhvaTiryagbhyamService:
         
         # add_number=self.add([a,b])
         # print(add_number)
+        
+        # print(multiplywithurdhva)
         cross_left = a + dev_b
         cross_left = a + dev_b
         alt_cross_left = b + dev_a
@@ -91,14 +103,19 @@ class VedicUrdhvaTiryagbhyamService:
         if factor == 1:
             steps.append(f"Step 6 - Adjusted L.H.S. = {adjusted_left}")
         else:
+            multiplywithurdhva=self.mul([cross_left,factor])
             steps.append(
-                f"Step 6 - Adjusted L.H.S. to theoretical base: {cross_left} x {factor} = {adjusted_left}"
+                f"Step 6 - Adjusted L.H.S. to theoretical base: {cross_left} x {factor}"
             )
+            steps.append(multiplywithurdhva)
 
         right_product = dev_a * dev_b
         steps.append(
-            f"Step 7 - R.H.S.: ({sign_a}{dev_a}) x ({sign_b}{dev_b}) = {right_product}"
+            f"Step 7 - R.H.S.: ({sign_a}{dev_a}) x ({sign_b}{dev_b})"
         )
+        multiply7steps=self.mul([dev_a,dev_b])
+        steps.append(multiply7steps)
+
 
         left_part = adjusted_left
         right_part = right_product
@@ -108,8 +125,8 @@ class VedicUrdhvaTiryagbhyamService:
             remainder = right_part % theoretical_base
 
             steps.append(
-                f"Step 8 - Right-part rule: theoretical base {theoretical_base} has {n} zero(s), so keep only last {n} digit(s) on RHS and carry the remaining part to LHS. "
-                f"{right_part} / {theoretical_base} = carry {carry}, remainder {remainder}"
+                f"Step 8 - Right-part rule: theoretical base {theoretical_base} has {n} zero(s), so keep only last {n} digit(s) on RHS and carry the remaining part to LHS."
+                
             )
 
             steps.append(
