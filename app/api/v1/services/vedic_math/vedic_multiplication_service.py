@@ -20,14 +20,33 @@ class VedicUrdhvaTiryagbhyamService:
         anchor = max(a, b)
         digits = len(str(anchor))
         theoretical_base = 10 if digits == 1 else 10 ** (digits - 1)
+        print(f"anchor={anchor}, digits={digits}, theoretical_base={theoretical_base}")
 
         multipliers = range(1, 11)
-        working_base = min(
-            (theoretical_base * m for m in multipliers),
-            key=lambda base: abs(anchor - base),
-        )
-        factor = working_base // theoretical_base
+        # working_base = min(
+        #     (theoretical_base * m for m in multipliers),
+        #     key=lambda base: abs(anchor - base),
+        # )
+        # factor = working_base // theoretical_base
+        # return theoretical_base, working_base, factor
+
+        base=[]
+        for m in multipliers:
+            value= theoretical_base * m
+            base.append(value)
+        
+
+        def working_base_closeness(base):
+            return abs(anchor - base)
+        
+        working_base = min(base, key=working_base_closeness)
+        factor= working_base // theoretical_base
+
+
         return theoretical_base, working_base, factor
+        
+
+
 
     def calculate(self, a: int, b: int) -> dict:
         orig_a, orig_b = a, b
@@ -120,6 +139,7 @@ class VedicUrdhvaTiryagbhyamService:
         left_part = adjusted_left
         right_part = right_product
 
+
         if right_part >= theoretical_base:
             carry = right_part // theoretical_base
             remainder = right_part % theoretical_base
@@ -181,7 +201,7 @@ class VedicUrdhvaTiryagbhyamService:
         if sign < 0:
             steps.append("Step 12 - Apply sign adjustment")
 
-        steps.append(f"Final Answer: {result}")
+        steps.append(f"Output: {result}")
 
         return {
             "multiplicand": orig_a,

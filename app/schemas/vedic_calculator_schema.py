@@ -15,16 +15,9 @@ class ExpressionCalculateRequest(BaseModel):
 class ExpressionStep(BaseModel):
     step: int
     sutra: str
-    operation: str
-    before: str
-    after: str
-    explanation: str
-    result_after_step: float | int
     details: list[Any] | None = None
 
 
 class ExpressionCalculateResponse(BaseModel):
     expression: str
-    normalized_expression: str
-    result: float | int
     steps: list[ExpressionStep]

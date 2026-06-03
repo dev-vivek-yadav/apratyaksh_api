@@ -4,12 +4,12 @@ class VedicUrdhvaTirService:
 
         # 🔹 Sign handling
         sign = 1
-        if a < 0:
+        if a < 0:   # agr nuber negative ho to usko positive banane ke liye sign ko 
             sign *= -1
             a = -a
         if b < 0:
             sign *= -1
-            b = -b
+            b = -b   
 
         # 🔹 Equal length banane ke liye padding
         len_a = len(str(a))
@@ -19,7 +19,7 @@ class VedicUrdhvaTirService:
         a_str = str(a).zfill(max_len)
         b_str = str(b).zfill(max_len)
 
-        # 🔹 Reverse arrays
+        # 🔹 Reverse arrays   # number ko reverse karne ke liye agr 2,3 hai to 32 ho jaye
         A = [int(d) for d in a_str][::-1]
         B = [int(d) for d in b_str][::-1]
 
@@ -70,7 +70,7 @@ class VedicUrdhvaTirService:
 
         result = int("".join(map(str, reversed(out_digits)))) * sign
 
-        steps.append(f"Final Answer: {result}")
+        steps.append(f"Output: {result}")
 
         return {
             "SUTRA": "URDHVA-TIRYAGBHYAM",
